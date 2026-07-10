@@ -1,26 +1,12 @@
-name: helmfile 1.6 vs 1.7 diff bench
+name: bench
 
 on:
+  push:
   workflow_dispatch:
     inputs:
       count:
         description: Number of releases
         default: "40"
-        type: string
-      mode:
-        description: "same = one remote chart (hits #2662 lock); unique = N charts (control)"
-        default: same
-        type: choice
-        options:
-          - same
-          - unique
-      concurrency:
-        description: helmfile --concurrency (0 = unlimited)
-        default: "0"
-        type: string
-  push:
-    branches: [main, master]
-  pull_request:
 
 jobs:
   bench:
@@ -28,47 +14,16 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
-
-      - name: Install helm
-        uses: azure/setup-helm@v4
+      - uses: azure/setup-helm@v4
         with:
           version: v3.16.3
-
-      - name: Install kubectl
-        uses: azure/setup-kubectl@v4
-        with:
-          version: v1.31.0
-
-      - name: Create kind cluster
-        uses: helm/kind-action@v1
+      - uses: helm/kind-action@v1
         with:
           cluster_name: helmfile-speed
-          wait: 120s
-
-      - name: Install helm-diff
-        run: |
-          helm plugin install https://github.com/databus23/helm-diff --version v3.9.13
-
-      - name: Install helmfile 1.6.0 and 1.7.0
-        run: |
-          chmod +x scripts/*.sh
-          ./scripts/install-helmfiles.sh
-          echo "${GITHUB_WORKSPACE}/bin" >> "${GITHUB_PATH}"
-
-      - name: Bench helmfile diff
-        env:
-          COUNT: ${{ github.event.inputs.count || '40' }}
-          MODE: ${{ github.event.inputs.mode || 'same' }}
-          CONCURRENCY: ${{ github.event.inputs.concurrency || '0' }}
-          HELMFILE_1_6: helmfile-1.6
-          HELMFILE_1_7: helmfile-1.7
-        run: ./scripts/bench.sh
-
-      - name: Upload results
-        if: always()
+      - run: helm plugin install https://github.com/databus23/helm-diff --version v3.9.13
+      - run: chmod +x scripts/bench.sh && COUNT=${{ github.event.inputs.count || '40' }} ./scripts/bench.sh
+      - if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: bench-results
-          path: |
-            results.txt
-            helmfile.yaml
+          name: results
+          path: results.txt

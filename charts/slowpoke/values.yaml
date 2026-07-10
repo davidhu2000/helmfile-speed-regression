@@ -1,4 +1,7 @@
-replicaCount: 1
-nameOverride: ""
-fullnameOverride: ""
+replicaCount: 2
+image:
+  repository: nginx
+  tag: "1.27-alpine"
 config: default
+# Extra ConfigMaps + Secrets to inflate helm diff work
+bulk: 30

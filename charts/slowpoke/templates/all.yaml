@@ -1,0 +1,342 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ include "slowpoke.fullname" . }}
+  labels:
+    {{- include "slowpoke.labels" . | nindent 4 }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "slowpoke.fullname" . }}
+  labels:
+    {{- include "slowpoke.labels" . | nindent 4 }}
+rules:
+  - apiGroups: ["", "apps"]
+    resources: ["pods", "services", "configmaps", "secrets", "deployments"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "slowpoke.fullname" . }}
+  labels:
+    {{- include "slowpoke.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "slowpoke.fullname" . }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "slowpoke.fullname" . }}
+    namespace: {{ .Release.Namespace }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "slowpoke.fullname" . }}
+  labels:
+    {{- include "slowpoke.labels" . | nindent 4 }}
+data:
+  config: {{ .Values.config | quote }}
+  release: {{ .Release.Name | quote }}
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ include "slowpoke.fullname" . }}
+  labels:
+    {{- include "slowpoke.labels" . | nindent 4 }}
+type: Opaque
+stringData:
+  username: slowpoke
+  password: {{ printf "%s-secret" .Values.config | quote }}
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ include "slowpoke.fullname" . }}-tls
+  labels:
+    {{- include "slowpoke.labels" . | nindent 4 }}
+type: kubernetes.io/tls
+stringData:
+  tls.crt: |
+    -----BEGIN CERTIFICATE-----
+    MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAuDummyForBench
+    -----END CERTIFICATE-----
+  tls.key: |
+    -----BEGIN PRIVATE KEY-----
+    MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQCDummyForBench
+    -----END PRIVATE KEY-----
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "slowpoke.fullname" . }}
+  labels:
+    {{- include "slowpoke.labels" . | nindent 4 }}
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "slowpoke.fullname" . }}
+  labels:
+    {{- include "slowpoke.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "slowpoke.selectorLabels" . | nindent 6 }}
+      component: web
+  template:
+    metadata:
+      labels:
+        {{- include "slowpoke.selectorLabels" . | nindent 8 }}
+        component: web
+    spec:
+      serviceAccountName: {{ include "slowpoke.fullname" . }}
+      containers:
+        - name: web
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          ports:
+            - name: http
+              containerPort: 80
+          envFrom:
+            - configMapRef:
+                name: {{ include "slowpoke.fullname" . }}
+            - secretRef:
+                name: {{ include "slowpoke.fullname" . }}
+          volumeMounts:
+            - name: data
+              mountPath: /data
+            - name: tls
+              mountPath: /tls
+              readOnly: true
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ include "slowpoke.fullname" . }}
+        - name: tls
+          secret:
+            secretName: {{ include "slowpoke.fullname" . }}-tls
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "slowpoke.fullname" . }}-sts
+  labels:
+    {{- include "slowpoke.labels" . | nindent 4 }}
+spec:
+  serviceName: {{ include "slowpoke.fullname" . }}-headless
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "slowpoke.selectorLabels" . | nindent 6 }}
+      component: sts
+  template:
+    metadata:
+      labels:
+        {{- include "slowpoke.selectorLabels" . | nindent 8 }}
+        component: sts
+    spec:
+      serviceAccountName: {{ include "slowpoke.fullname" . }}
+      containers:
+        - name: app
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          ports:
+            - name: http
+              containerPort: 80
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 1Gi
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: {{ include "slowpoke.fullname" . }}-ds
+  labels:
+    {{- include "slowpoke.labels" . | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "slowpoke.selectorLabels" . | nindent 6 }}
+      component: ds
+  template:
+    metadata:
+      labels:
+        {{- include "slowpoke.selectorLabels" . | nindent 8 }}
+        component: ds
+    spec:
+      serviceAccountName: {{ include "slowpoke.fullname" . }}
+      containers:
+        - name: agent
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "slowpoke.fullname" . }}-job
+  labels:
+    {{- include "slowpoke.labels" . | nindent 4 }}
+spec:
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: job
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          command: ["sh", "-c", "echo {{ .Values.config }}"]
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "slowpoke.fullname" . }}-cron
+  labels:
+    {{- include "slowpoke.labels" . | nindent 4 }}
+spec:
+  schedule: "0 * * * *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: cron
+              image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+              command: ["sh", "-c", "echo cron"]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "slowpoke.fullname" . }}
+  labels:
+    {{- include "slowpoke.labels" . | nindent 4 }}
+spec:
+  ports:
+    - port: 80
+      targetPort: http
+      name: http
+  selector:
+    {{- include "slowpoke.selectorLabels" . | nindent 4 }}
+    component: web
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "slowpoke.fullname" . }}-headless
+  labels:
+    {{- include "slowpoke.labels" . | nindent 4 }}
+spec:
+  clusterIP: None
+  ports:
+    - port: 80
+      name: http
+  selector:
+    {{- include "slowpoke.selectorLabels" . | nindent 4 }}
+    component: sts
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "slowpoke.fullname" . }}
+  labels:
+    {{- include "slowpoke.labels" . | nindent 4 }}
+spec:
+  rules:
+    - host: {{ printf "%s.slowpoke.local" .Release.Name | quote }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "slowpoke.fullname" . }}
+                port:
+                  number: 80
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "slowpoke.fullname" . }}
+  labels:
+    {{- include "slowpoke.labels" . | nindent 4 }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "slowpoke.fullname" . }}
+  minReplicas: 1
+  maxReplicas: 5
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 80
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "slowpoke.fullname" . }}
+  labels:
+    {{- include "slowpoke.labels" . | nindent 4 }}
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      {{- include "slowpoke.selectorLabels" . | nindent 6 }}
+      component: web
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "slowpoke.fullname" . }}
+  labels:
+    {{- include "slowpoke.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "slowpoke.selectorLabels" . | nindent 6 }}
+  policyTypes: ["Ingress", "Egress"]
+  ingress:
+    - ports:
+        - protocol: TCP
+          port: 80
+  egress:
+    - {}
+{{- /* bulk objects — main cost driver for helm diff */}}
+{{- range $i := until (int .Values.bulk) }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "slowpoke.fullname" $ }}-cm-{{ $i }}
+  labels:
+    {{- include "slowpoke.labels" $ | nindent 4 }}
+data:
+  index: {{ $i | quote }}
+  config: {{ $.Values.config | quote }}
+  payload: {{ printf "%s-%d-%s" $.Release.Name $i $.Values.config | quote }}
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ include "slowpoke.fullname" $ }}-sec-{{ $i }}
+  labels:
+    {{- include "slowpoke.labels" $ | nindent 4 }}
+type: Opaque
+stringData:
+  index: {{ $i | quote }}
+  token: {{ printf "tok-%s-%d" $.Values.config $i | quote }}
+{{- end }}
