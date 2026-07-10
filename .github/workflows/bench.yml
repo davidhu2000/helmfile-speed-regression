@@ -19,7 +19,7 @@ jobs:
       - uses: helm/kind-action@v1.14.0
         with:
           cluster_name: helmfile-speed
-      - run: helm plugin install https://github.com/databus23/helm-diff --version v3.15.10
+      - run: helm plugin install https://github.com/databus23/helm-diff --version v3.15.10 --verify=false
       - run: chmod +x scripts/bench.sh && COUNT=${{ github.event.inputs.count || '10' }} ./scripts/bench.sh
       - if: always()
         uses: actions/upload-artifact@v7
