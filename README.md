@@ -8,6 +8,5 @@ kind create cluster --name helmfile-speed   # if needed
 COUNT=10 ./scripts/bench.sh
 ```
 
-Reports avg seconds/release (`total / N`).
-
+Chart ~2k objects / ~128MiB render so one `helm diff` is slow (template alone ~7s). Reports avg seconds/release (`total / N`).
 Manual run: Actions → bench → Run workflow.

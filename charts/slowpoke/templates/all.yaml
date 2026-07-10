@@ -315,7 +315,8 @@ spec:
           port: 80
   egress:
     - {}
-{{- /* bulk objects — main cost driver for helm diff */}}
+{{- /* bulk fat objects — make a single helm diff expensive */}}
+{{- $blob := "0123456789abcdef" | repeat (int .Values.payloadRepeat) }}
 {{- range $i := until (int .Values.bulk) }}
 ---
 apiVersion: v1
@@ -327,7 +328,7 @@ metadata:
 data:
   index: {{ $i | quote }}
   config: {{ $.Values.config | quote }}
-  payload: {{ printf "%s-%d-%s" $.Release.Name $i $.Values.config | quote }}
+  payload: {{ $blob | quote }}
 ---
 apiVersion: v1
 kind: Secret
@@ -339,4 +340,5 @@ type: Opaque
 stringData:
   index: {{ $i | quote }}
   token: {{ printf "tok-%s-%d" $.Values.config $i | quote }}
+  payload: {{ $blob | quote }}
 {{- end }}

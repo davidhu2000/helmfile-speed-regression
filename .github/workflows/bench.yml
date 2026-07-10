@@ -11,6 +11,8 @@ jobs:
   bench:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    outputs:
+      results: ${{ steps.bench.outputs.results }}
     steps:
       - uses: actions/checkout@v7
       - uses: azure/setup-helm@v5
@@ -20,9 +22,12 @@ jobs:
         with:
           cluster_name: helmfile-speed
       - run: helm plugin install https://github.com/databus23/helm-diff --version v3.15.10 --verify=false
-      - run: chmod +x scripts/bench.sh && COUNT=${{ github.event.inputs.count || '10' }} ./scripts/bench.sh
-      - if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: results
-          path: results.txt
+      - id: bench
+        run: |
+          chmod +x scripts/bench.sh
+          COUNT=${{ github.event.inputs.count || '10' }} ./scripts/bench.sh
+          {
+            echo 'results<<EOF'
+            cat results.txt
+            echo EOF
+          } >> "$GITHUB_OUTPUT"

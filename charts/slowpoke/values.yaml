@@ -3,5 +3,7 @@ image:
   repository: nginx
   tag: "1.27-alpine"
 config: default
-# Extra ConfigMaps + Secrets to inflate helm diff work
-bulk: 30
+# Goal: one `helm diff` is expensive (v1.7 serializes these).
+bulk: 1000
+# 16-char chunk * N → ~64KiB blob/object; 1000*2*64KiB ≈ 128MiB render
+payloadRepeat: 4096
