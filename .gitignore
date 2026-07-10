@@ -1,0 +1,7 @@
+bin/
+.repo/
+.repo-server.pid
+helmfile.yaml
+results.txt
+*.tgz
+.DS_Store
