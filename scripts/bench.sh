@@ -3,7 +3,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-COUNT="${COUNT:-40}"
+COUNT="${COUNT:-10}"
 BIN="${ROOT}/bin"
 REPO="${ROOT}/.repo"
 export PATH="${BIN}:${PATH}"
@@ -73,7 +73,8 @@ for label_bin in "v1.6.0:helmfile-1.6" "v1.7.0:helmfile-1.7"; do
   "${bin}" diff --concurrency 0 --detailed-exitcode=false >/dev/null || true
   end=$(python3 -c 'import time; print(time.time())')
   elapsed=$(python3 -c "print(round(float('$end') - float('$start'), 2))")
-  echo "${label}: ${elapsed}s" | tee -a "${results}"
+  avg=$(python3 -c "print(round(float('$elapsed') / int('$COUNT'), 3))")
+  echo "${label}: ${avg}s/release (${elapsed}s total)" | tee -a "${results}"
 done
 
 echo "---"; cat "${results}"

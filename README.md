@@ -5,7 +5,9 @@ Repro for [helmfile#2662](https://github.com/helmfile/helmfile/pull/2662): same 
 ```bash
 # needs: helm, helm-diff plugin, kubectl (kind ok), curl, python3
 kind create cluster --name helmfile-speed   # if needed
-COUNT=40 ./scripts/bench.sh
+COUNT=10 ./scripts/bench.sh
 ```
 
-Also runs on push via `.github/workflows/bench.yml`.
+Reports avg seconds/release (`total / N`).
+
+Manual run: Actions → bench → Run workflow.

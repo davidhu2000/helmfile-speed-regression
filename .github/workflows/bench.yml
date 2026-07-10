@@ -1,29 +1,28 @@
 name: bench
 
 on:
-  push:
   workflow_dispatch:
     inputs:
       count:
         description: Number of releases
-        default: "40"
+        default: "10"
 
 jobs:
   bench:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
-      - uses: azure/setup-helm@v4
+      - uses: actions/checkout@v7
+      - uses: azure/setup-helm@v5
         with:
-          version: v3.16.3
-      - uses: helm/kind-action@v1
+          version: v4.2.3
+      - uses: helm/kind-action@v1.14.0
         with:
           cluster_name: helmfile-speed
-      - run: helm plugin install https://github.com/databus23/helm-diff --version v3.9.13
-      - run: chmod +x scripts/bench.sh && COUNT=${{ github.event.inputs.count || '40' }} ./scripts/bench.sh
+      - run: helm plugin install https://github.com/databus23/helm-diff --version v3.15.10
+      - run: chmod +x scripts/bench.sh && COUNT=${{ github.event.inputs.count || '10' }} ./scripts/bench.sh
       - if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: results
           path: results.txt
